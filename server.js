@@ -16,6 +16,7 @@ dotenv.config({ path: './config/config.env' });
 
 // Route files
 const auth = require('./routes/auth');
+const bookings = require('./routes/bookings');
 
 // Connect to database
 connectDB();
@@ -86,6 +87,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 // Mount routers
 app.use('/api/v1/auth', auth);
+app.use('/api/v1/bookings', bookings);
 
 const PORT = process.env.PORT || 5003;
 
