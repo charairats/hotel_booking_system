@@ -1,5 +1,6 @@
 const Booking = require('../models/Booking');
 const Hotel = require('../models/Hotel');
+const User = require('../models/User');
 
 //@desc    Get all bookings
 //@route   GET /api/v1/bookings
@@ -11,20 +12,24 @@ exports.getBookings = async (req, res, next) => {
 
     // If general user, can only view own bookings
     if (req.user.role !== 'admin') {
-      query = Booking.find({ user: req.user.id });
+      query = Booking.find({ user: req.user.id }).populate({
+        path: 'hotel',
+        select: 'name address tel pricePerNight',
+      });
     } else {
       // If admin, can view all or hotel-specific
       if (req.params.hotelId) {
-        query = Booking.find({ hotel: req.params.hotelId });
+        query = Booking.find({ hotel: req.params.hotelId }).populate({
+          path: 'hotel',
+          select: 'name address tel pricePerNight',
+        });
       } else {
-        query = Booking.find();
+        query = Booking.find().populate({
+          path: 'hotel',
+          select: 'name address tel pricePerNight',
+        });
       }
     }
-
-    query = query.populate({
-      path: 'hotel',
-      select: 'name address tel pricePerNight',
-    });
 
     const bookings = await query;
 
@@ -81,12 +86,7 @@ exports.getBooking = async (req, res, next) => {
 exports.addBooking = async (req, res, next) => {
   try {
     const hotelId = req.params.hotelId || req.body.hotel;
-    if (!hotelId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide a hotel ID',
-      });
-    }
+    req.body.hotel = hotelId;
 
     const hotel = await Hotel.findById(hotelId);
     if (!hotel) {
@@ -95,11 +95,9 @@ exports.addBooking = async (req, res, next) => {
         message: `No hotel with the id of ${hotelId}`,
       });
     }
-    const hotelPrice = hotel.pricePerNight || 1000;
 
     // Add user to req.body
     req.body.user = req.user.id;
-    req.body.hotel = hotelId;
 
     const { checkInDate, checkOutDate } = req.body;
 
@@ -140,10 +138,9 @@ exports.addBooking = async (req, res, next) => {
       });
     }
 
-    // Calculate subTotal and totalPrice
-    const subTotal = numOfNights * hotelPrice;
-    const discount = 0;
-    const totalPrice = subTotal - discount;
+    // Price calculation
+    const subTotal = numOfNights * (hotel.pricePerNight || 1000);
+    const totalPrice = subTotal;
 
     const booking = await Booking.create({
       checkInDate: checkIn,
@@ -152,7 +149,6 @@ exports.addBooking = async (req, res, next) => {
       user: req.user.id,
       hotel: hotelId,
       subTotal,
-      discount,
       totalPrice,
       status: 'pending',
     });
@@ -214,10 +210,8 @@ exports.updateBooking = async (req, res, next) => {
     }
 
     const hotel = await Hotel.findById(booking.hotel);
-    const hotelPrice = hotel ? hotel.pricePerNight : 1000;
-
-    const subTotal = numOfNights * hotelPrice;
-    const discount = booking.discount || 0;
+    const subTotal = numOfNights * (hotel ? hotel.pricePerNight : 1000);
+    let discount = booking.discount;
 
     req.body.numOfNights = numOfNights;
     req.body.subTotal = subTotal;
@@ -269,5 +263,84 @@ exports.deleteBooking = async (req, res, next) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Cannot delete Booking' });
+  }
+};
+
+//@desc    Pay for booking and earn loyalty points
+//@route   POST /api/v1/bookings/:id/pay
+//@access  Private
+exports.payBooking = async (req, res, next) => {
+  try {
+    const { paymentMethod } = req.body;
+    const validMethods = ['credit_card', 'debit_card', 'qr_code'];
+
+    if (!paymentMethod || !validMethods.includes(paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        message: `Please provide a valid paymentMethod (${validMethods.join(', ')})`,
+      });
+    }
+
+    const booking = await Booking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: `No booking with the id of ${req.params.id}`,
+      });
+    }
+
+    // Make sure user is booking owner or admin
+    if (booking.user.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: `User ${req.user.id} is not authorized to pay for this booking`,
+      });
+    }
+
+    if (booking.status === 'paid') {
+      return res.status(400).json({
+        success: false,
+        message: 'This booking has already been paid',
+      });
+    }
+
+    // Calculate points: 1 point per 100 THB spent
+    const pointsEarned = Math.floor(booking.totalPrice / 100);
+
+    booking.status = 'paid';
+    booking.payment = {
+      method: paymentMethod,
+      paidAt: new Date(),
+      transactionId: `TXN-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    };
+    booking.pointsEarned = pointsEarned;
+    await booking.save();
+
+    // Increment user points
+    const user = await User.findByIdAndUpdate(
+      booking.user,
+      { $inc: { points: pointsEarned } },
+      { returnDocument: 'after' },
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment completed successfully',
+      data: {
+        bookingId: booking._id,
+        status: booking.status,
+        totalPrice: booking.totalPrice,
+        payment: booking.payment,
+        pointsEarned,
+        userAccumulatedPoints: user ? user.points : 0,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Payment processing failed',
+    });
   }
 };
