@@ -1,0 +1,649 @@
+{
+  "info": {
+    "name": "Hotel Booking Main Demo — Steps 1–12",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run the required Step 1–12 requests in order. Admin steps use an existing booking owned by another user. Set adminPassword in the selected Postman environment before running; keep its value private."
+  },
+  "variable": [
+    {
+      "key": "URL",
+      "value": "http://localhost:5000/api/v1"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "adminBookingId",
+      "value": ""
+    },
+    {
+      "key": "adminPassword",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1.1 Register With Missing Required Field",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Missing password returns 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Main Demo User\",\n  \"email\": \"missing-password@example.com\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/auth/register"
+      }
+    },
+    {
+      "name": "1.2 Register Successfully",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Registration returns 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "const response = pm.response.json();",
+              "pm.collectionVariables.set('testEmail', response.email);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Main Demo User\",\n  \"email\": \"main_{{$guid}}@example.com\",\n  \"password\": \"password123\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/auth/register"
+      }
+    },
+    {
+      "name": "2.1 Login With Wrong Password",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Wrong password returns 401', function () {",
+              "  pm.response.to.have.status(401);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"wrong-password\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/auth/login"
+      }
+    },
+    {
+      "name": "2.2 Login Successfully",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const response = pm.response.json();",
+              "pm.collectionVariables.set('token', response.token);",
+              "pm.collectionVariables.set('userId', response._id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"password123\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/auth/login"
+      }
+    },
+    {
+      "name": "3 View Hotels",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Hotel list returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const response = pm.response.json();",
+              "pm.test('There are at least 20 hotels', function () {",
+              "  pm.expect(response.data.length).to.be.at.least(20);",
+              "});",
+              "pm.collectionVariables.set('hotelId', response.data[0]._id);",
+              "pm.collectionVariables.set('checkInDate', new Date(Date.now() + 40 * 86400000).toISOString());",
+              "pm.collectionVariables.set('invalidCheckOutDate', new Date(Date.now() + 39 * 86400000).toISOString());",
+              "pm.collectionVariables.set('longCheckOutDate', new Date(Date.now() + 71 * 86400000).toISOString());",
+              "pm.collectionVariables.set('checkOutDate', new Date(Date.now() + 42 * 86400000).toISOString());",
+              "pm.collectionVariables.set('updatedCheckInDate', new Date(Date.now() + 43 * 86400000).toISOString());",
+              "pm.collectionVariables.set('updatedCheckOutDate', new Date(Date.now() + 46 * 86400000).toISOString());",
+              "pm.collectionVariables.set('adminUpdatedCheckInDate', new Date(Date.now() + 55 * 86400000).toISOString());",
+              "pm.collectionVariables.set('adminUpdatedCheckOutDate', new Date(Date.now() + 58 * 86400000).toISOString());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": "{{URL}}/hotels"
+      }
+    },
+    {
+      "name": "4.1 Invalid Booking — Check-out Before Check-in",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Earlier checkout returns 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"hotel\": \"{{hotelId}}\",\n  \"checkInDate\": \"{{checkInDate}}\",\n  \"checkOutDate\": \"{{invalidCheckOutDate}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/bookings"
+      }
+    },
+    {
+      "name": "4.2 Invalid Booking — More Than 30 Nights",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('More than 30 nights returns 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"hotel\": \"{{hotelId}}\",\n  \"checkInDate\": \"{{checkInDate}}\",\n  \"checkOutDate\": \"{{longCheckOutDate}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/bookings"
+      }
+    },
+    {
+      "name": "4.3 Create Valid Booking",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Booking is created', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "const response = pm.response.json();",
+              "pm.collectionVariables.set('bookingId', response.data._id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"hotel\": \"{{hotelId}}\",\n  \"checkInDate\": \"{{checkInDate}}\",\n  \"checkOutDate\": \"{{checkOutDate}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/bookings"
+      }
+    },
+    {
+      "name": "5 View Own Bookings",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Own booking list returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const response = pm.response.json();",
+              "pm.test('The booking exists', function () {",
+              "  pm.expect(response.count).to.be.above(0);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{URL}}/bookings"
+      }
+    },
+    {
+      "name": "6 Update Own Booking",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Booking update returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"checkInDate\": \"{{updatedCheckInDate}}\",\n  \"checkOutDate\": \"{{updatedCheckOutDate}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/bookings/{{bookingId}}"
+      }
+    },
+    {
+      "name": "7 Delete Own Booking",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Booking deletion returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{URL}}/bookings/{{bookingId}}"
+      }
+    },
+    {
+      "name": "8 Logout",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Logout returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.collectionVariables.unset('token');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{URL}}/auth/logout"
+      }
+    },
+    {
+      "name": "9 Admin Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Admin login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const response = pm.response.json();",
+              "pm.test('Role is admin', function () {",
+              "  pm.expect(response.role).to.equal('admin');",
+              "});",
+              "pm.collectionVariables.set('adminToken', response.token);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@hotel.com\",\n  \"password\": \"{{adminPassword}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/auth/login"
+      }
+    },
+    {
+      "name": "10 Admin View Other User Booking",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Admin booking list returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const response = pm.response.json();",
+              "let otherBooking;",
+              "for (const booking of response.data) {",
+              "  if (booking.user !== pm.collectionVariables.get('userId') && booking.status === 'pending') {",
+              "    otherBooking = booking;",
+              "    break;",
+              "  }",
+              "}",
+              "pm.test('Admin sees a pending booking from another user', function () {",
+              "  pm.expect(otherBooking).to.exist;",
+              "});",
+              "if (otherBooking) {",
+              "  pm.collectionVariables.set('adminBookingId', otherBooking._id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{URL}}/bookings"
+      }
+    },
+    {
+      "name": "11 Admin Update Other User Booking",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Admin booking update returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const response = pm.response.json();",
+              "pm.test('Updated booking has the expected ID', function () {",
+              "  pm.expect(response.data._id).to.equal(pm.collectionVariables.get('adminBookingId'));",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"checkInDate\": \"{{adminUpdatedCheckInDate}}\",\n  \"checkOutDate\": \"{{adminUpdatedCheckOutDate}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/bookings/{{adminBookingId}}"
+      }
+    },
+    {
+      "name": "12 Admin Delete Other User Booking",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Admin booking deletion returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{URL}}/bookings/{{adminBookingId}}"
+      }
+    }
+  ]
+}

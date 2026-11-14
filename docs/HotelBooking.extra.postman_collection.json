@@ -1,0 +1,533 @@
+{
+  "info": {
+    "name": "Hotel Booking Extra Credit — Promotion, Payment, Loyalty",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run separately using the existing demo user. Payment is a local simulation that marks bookings paid and credits points. Set demoPassword in the selected Postman environment before running; keep its value private."
+  },
+  "variable": [
+    {
+      "key": "URL",
+      "value": "http://localhost:5000/api/v1"
+    },
+    {
+      "key": "extraToken",
+      "value": ""
+    },
+    {
+      "key": "demoPassword",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Setup: Login Demo User",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Demo user login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const response = pm.response.json();",
+              "pm.collectionVariables.set('extraToken', response.token);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"demo@hotel.com\",\n  \"password\": \"{{demoPassword}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/auth/login"
+      }
+    },
+    {
+      "name": "Promotion — View Hotels",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Hotel list returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const response = pm.response.json();",
+              "pm.test('There are at least 20 hotels', function () {",
+              "  pm.expect(response.data.length).to.be.at.least(20);",
+              "});",
+              "const hotel = response.data.find(function (item) {",
+              "  return item.pricePerNight >= 3000;",
+              "});",
+              "pm.collectionVariables.set('extraHotelId', hotel._id);",
+              "pm.collectionVariables.set('extraHotelPrice', hotel.pricePerNight);",
+              "pm.collectionVariables.set('promoCheckIn', new Date(Date.now() + 40 * 86400000).toISOString());",
+              "pm.collectionVariables.set('promoCheckOut', new Date(Date.now() + 42 * 86400000).toISOString());",
+              "pm.collectionVariables.set('fixedCheckIn', new Date(Date.now() + 45 * 86400000).toISOString());",
+              "pm.collectionVariables.set('fixedCheckOut', new Date(Date.now() + 47 * 86400000).toISOString());",
+              "pm.collectionVariables.set('qrCheckIn', new Date(Date.now() + 50 * 86400000).toISOString());",
+              "pm.collectionVariables.set('qrCheckOut', new Date(Date.now() + 52 * 86400000).toISOString());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": "{{URL}}/hotels"
+      }
+    },
+    {
+      "name": "Promotion — View WELCOME10",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('WELCOME10 returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const response = pm.response.json();",
+              "pm.test('Discount is 10 percent', function () {",
+              "  pm.expect(response.data.discountValue).to.equal(10);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": "{{URL}}/promotions/WELCOME10"
+      }
+    },
+    {
+      "name": "Promotion — Create Booking with WELCOME10",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('WELCOME10 booking returns 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "const booking = pm.response.json().data;",
+              "const discount = booking.subTotal * 0.1;",
+              "pm.test('Discount and total are correct', function () {",
+              "  pm.expect(booking.discount).to.equal(discount);",
+              "  pm.expect(booking.totalPrice).to.equal(booking.subTotal - discount);",
+              "});",
+              "pm.collectionVariables.set('creditBookingId', booking._id);",
+              "pm.collectionVariables.set('creditTotal', booking.totalPrice);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{extraToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"hotel\": \"{{extraHotelId}}\",\n  \"checkInDate\": \"{{promoCheckIn}}\",\n  \"checkOutDate\": \"{{promoCheckOut}}\",\n  \"promoCode\": \"WELCOME10\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/bookings"
+      }
+    },
+    {
+      "name": "Payment — Credit Card Simulation",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Credit card payment returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const response = pm.response.json().data;",
+              "pm.test('Credit card payment earns points', function () {",
+              "  pm.expect(response.pointsEarned).to.equal(Math.floor(response.totalPrice / 100));",
+              "});",
+              "pm.collectionVariables.set('pointsAfterCredit', response.userAccumulatedPoints);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{extraToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"paymentMethod\": \"credit_card\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/bookings/{{creditBookingId}}/pay"
+      }
+    },
+    {
+      "name": "Loyalty — Duplicate Payment Rejected",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Second payment returns 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{extraToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"paymentMethod\": \"credit_card\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/bookings/{{creditBookingId}}/pay"
+      }
+    },
+    {
+      "name": "Loyalty — View Points After Credit Card",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Points are shown', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const response = pm.response.json();",
+              "pm.test('Points were credited once', function () {",
+              "  pm.expect(response.data.points).to.equal(Number(pm.collectionVariables.get('pointsAfterCredit')));",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{extraToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{URL}}/auth/me"
+      }
+    },
+    {
+      "name": "Promotion — Create Booking with DISCOUNT500",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('DISCOUNT500 booking returns 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "const booking = pm.response.json().data;",
+              "pm.test('Discount is 500 THB', function () {",
+              "  pm.expect(booking.discount).to.equal(500);",
+              "  pm.expect(booking.totalPrice).to.equal(booking.subTotal - 500);",
+              "});",
+              "pm.collectionVariables.set('debitBookingId', booking._id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{extraToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"hotel\": \"{{extraHotelId}}\",\n  \"checkInDate\": \"{{fixedCheckIn}}\",\n  \"checkOutDate\": \"{{fixedCheckOut}}\",\n  \"promoCode\": \"DISCOUNT500\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/bookings"
+      }
+    },
+    {
+      "name": "Payment — Debit Card Simulation",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Debit card payment returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const response = pm.response.json().data;",
+              "pm.test('Debit card payment earns points', function () {",
+              "  pm.expect(response.pointsEarned).to.equal(Math.floor(response.totalPrice / 100));",
+              "});",
+              "pm.collectionVariables.set('pointsAfterDebit', response.userAccumulatedPoints);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{extraToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"paymentMethod\": \"debit_card\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/bookings/{{debitBookingId}}/pay"
+      }
+    },
+    {
+      "name": "Payment — Create Booking for QR Simulation",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('QR booking returns 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "const response = pm.response.json();",
+              "pm.collectionVariables.set('qrBookingId', response.data._id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{extraToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"hotel\": \"{{extraHotelId}}\",\n  \"checkInDate\": \"{{qrCheckIn}}\",\n  \"checkOutDate\": \"{{qrCheckOut}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/bookings"
+      }
+    },
+    {
+      "name": "Payment — QR Code Simulation",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('QR payment returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const response = pm.response.json().data;",
+              "pm.test('QR payment earns points', function () {",
+              "  pm.expect(response.pointsEarned).to.equal(Math.floor(response.totalPrice / 100));",
+              "});",
+              "pm.collectionVariables.set('expectedTotalPoints', response.userAccumulatedPoints);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{extraToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"paymentMethod\": \"qr_code\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/bookings/{{qrBookingId}}/pay"
+      }
+    },
+    {
+      "name": "Loyalty — View Accumulated Points",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Current user returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const response = pm.response.json();",
+              "pm.test('Total points match all payments', function () {",
+              "  pm.expect(response.data.points).to.equal(Number(pm.collectionVariables.get('expectedTotalPoints')));",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{extraToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{URL}}/auth/me"
+      }
+    }
+  ]
+}

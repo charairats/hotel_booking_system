@@ -69,7 +69,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: `http://localhost:${process.env.PORT || 5003}/api/v1`,
+        url: `http://localhost:${process.env.PORT || 5000}/api/v1`,
       },
     ],
     components: {
@@ -93,7 +93,7 @@ app.use('/api/v1/bookings', bookings);
 app.use('/api/v1/hotels', hotels);
 app.use('/api/v1/promotions', promotions);
 
-const PORT = process.env.PORT || 5003;
+const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
   console.log(

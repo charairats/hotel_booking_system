@@ -5,7 +5,10 @@ const Promotion = require('../models/Promotion');
 //@access  Public
 exports.getPromotions = async (req, res, next) => {
   try {
-    const promotions = await Promotion.find({ isActive: true });
+    const promotions = await Promotion.find({
+      isActive: true,
+      $or: [{ validUntil: { $gt: new Date() } }, { validUntil: null }],
+    });
     res.status(200).json({ success: true, count: promotions.length, data: promotions });
   } catch (err) {
     console.error(err);
@@ -25,7 +28,7 @@ exports.getPromotionByCode = async (req, res, next) => {
       return res.status(404).json({ success: false, message: `No active promotion with code ${code}` });
     }
 
-    if (promotion.validUntil && promotion.validUntil < new Date()) {
+    if (promotion.validUntil && promotion.validUntil <= new Date()) {
       return res.status(400).json({ success: false, message: `Promotion code ${code} has expired` });
     }
 
@@ -41,6 +44,14 @@ exports.getPromotionByCode = async (req, res, next) => {
 //@access  Private/Admin
 exports.createPromotion = async (req, res, next) => {
   try {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      return res.status(400).json({ success: false, message: 'Please provide promotion details' });
+    }
+
+    if (req.body.validUntil !== undefined && new Date(req.body.validUntil) <= new Date()) {
+      return res.status(400).json({ success: false, message: 'Promotion expiry must be in the future' });
+    }
+
     const promotion = await Promotion.create(req.body);
     res.status(201).json({ success: true, data: promotion });
   } catch (err) {
@@ -55,6 +66,23 @@ exports.createPromotion = async (req, res, next) => {
 //@access  Private/Admin
 exports.updatePromotion = async (req, res, next) => {
   try {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      return res.status(400).json({ success: false, message: 'Please provide promotion details' });
+    }
+
+    const currentPromotion = await Promotion.findById(req.params.id);
+
+    if (!currentPromotion) {
+      return res.status(404).json({ success: false, message: `No promotion with the id of ${req.params.id}` });
+    }
+
+    const discountType = req.body.discountType ?? currentPromotion.discountType;
+    const discountValue = req.body.discountValue ?? currentPromotion.discountValue;
+
+    if (discountType === 'percentage' && Number(discountValue) > 100) {
+      return res.status(400).json({ success: false, message: 'Percentage discount cannot be more than 100' });
+    }
+
     const promotion = await Promotion.findByIdAndUpdate(req.params.id, req.body, {
       returnDocument: 'after',
       runValidators: true,
