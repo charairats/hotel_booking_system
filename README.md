@@ -6,6 +6,7 @@
 
 ## Student Names
 1. Charairat Swaengsap 6870049221
+2. Gesganok Aussawayothin 6870020021
 
 ## Additional Requirements
 1. The system shall allow the registered user to apply a promotion code during the booking process to receive a discount.
