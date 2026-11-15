@@ -142,57 +142,34 @@ exports.addBooking = async (req, res, next) => {
 
     // Calculate subTotal and apply a valid promotion, if supplied
     const subTotal = Math.round(numOfNights * hotelPrice * 100) / 100;
-    let discount = 0;
-    let promoCode;
-
-    if (req.body.promoCode !== undefined && req.body.promoCode !== null) {
-      if (typeof req.body.promoCode !== 'string' || !req.body.promoCode.trim()) {
-        return res.status(400).json({ success: false, message: 'Please provide a valid promoCode' });
-      }
-
-      promoCode = req.body.promoCode.trim().toUpperCase();
-      const promotion = await Promotion.findOne({ code: promoCode });
-
-      if (!promotion || !promotion.isActive) {
-        return res.status(400).json({ success: false, message: 'Invalid or inactive promotion code' });
-      }
-
-      if (promotion.validUntil && promotion.validUntil <= new Date()) {
-        return res.status(400).json({ success: false, message: 'Promotion code has expired' });
-      }
-
-      if (
-        !['percentage', 'fixed'].includes(promotion.discountType) ||
-        !Number.isFinite(promotion.discountValue) ||
-        promotion.discountValue < 0 ||
-        (promotion.discountType === 'percentage' && promotion.discountValue > 100)
-      ) {
-        return res.status(400).json({ success: false, message: 'Promotion discount is invalid' });
-      }
-
-      if (promotion.discountType === 'percentage') {
-        discount = subTotal * promotion.discountValue / 100;
-      } else {
-        discount = promotion.discountValue;
-      }
-
-      discount = Math.min(subTotal, Math.round(discount * 100) / 100);
-    }
-
-    const totalPrice = Math.round((subTotal - discount) * 100) / 100;
-
-    const booking = await Booking.create({
+    const booking = new Booking({
       checkInDate: checkIn,
       checkOutDate: checkOut,
       numOfNights,
       user: req.user.id,
       hotel: hotelId,
       subTotal,
-      promoCode,
-      discount,
-      totalPrice,
+      discount: 0,
+      totalPrice: subTotal,
       status: 'pending',
     });
+
+    if (req.body.promoCode !== undefined && req.body.promoCode !== null) {
+      if (typeof req.body.promoCode !== 'string' || !req.body.promoCode.trim()) {
+        return res.status(400).json({ success: false, message: 'Please provide a valid promoCode' });
+      }
+
+      const promoCode = req.body.promoCode.trim().toUpperCase();
+      const promotion = await Promotion.findOne({ code: promoCode });
+
+      try {
+        booking.applyPromotion(promotion);
+      } catch (promoErr) {
+        return res.status(400).json({ success: false, message: promoErr.message });
+      }
+    }
+
+    await booking.save();
 
     res.status(201).json({
       success: true,
@@ -277,10 +254,10 @@ exports.updateBooking = async (req, res, next) => {
   }
 };
 
-//@desc    Delete booking
+//@desc    Cancel booking
 //@route   DELETE /api/v1/bookings/:id
 //@access  Private
-exports.deleteBooking = async (req, res, next) => {
+exports.cancelBooking = async (req, res, next) => {
   try {
     const booking = await Booking.findById(req.params.id);
 

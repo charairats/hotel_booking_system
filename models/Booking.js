@@ -67,4 +67,39 @@ const BookingSchema = new mongoose.Schema({
   },
 });
 
+/**
+ * Validate and apply a promotion to this booking, updating promoCode, discount, and totalPrice.
+ */
+BookingSchema.methods.applyPromotion = function (promotion) {
+  if (!promotion || !promotion.isActive) {
+    throw new Error('Invalid or inactive promotion code');
+  }
+
+  if (promotion.validUntil && promotion.validUntil <= new Date()) {
+    throw new Error('Promotion code has expired');
+  }
+
+  if (
+    !['percentage', 'fixed'].includes(promotion.discountType) ||
+    !Number.isFinite(promotion.discountValue) ||
+    promotion.discountValue < 0 ||
+    (promotion.discountType === 'percentage' && promotion.discountValue > 100)
+  ) {
+    throw new Error('Promotion discount is invalid');
+  }
+
+  const rawDiscount =
+    promotion.discountType === 'percentage'
+      ? (this.subTotal * promotion.discountValue) / 100
+      : promotion.discountValue;
+
+  const discount = Math.min(this.subTotal, Math.round(rawDiscount * 100) / 100);
+
+  this.promoCode = promotion.code ? String(promotion.code).trim().toUpperCase() : undefined;
+  this.discount = discount;
+  this.totalPrice = Math.round((this.subTotal - discount) * 100) / 100;
+
+  return this.totalPrice;
+};
+
 module.exports = mongoose.model('Booking', BookingSchema);
