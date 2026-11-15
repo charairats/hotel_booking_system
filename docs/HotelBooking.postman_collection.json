@@ -2,7 +2,7 @@
   "info": {
     "name": "Hotel Booking Main Demo — Steps 1–12",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Run the required Step 1–12 requests in order. Admin steps use an existing booking owned by another user. Set adminPassword in the selected Postman environment before running; keep its value private."
+    "description": "Run the required Step 1–12 requests in order. Step 7.1 creates the booking used by the admin steps. Set adminPassword in the selected Postman environment before running; keep its value private."
   },
   "variable": [
     {
@@ -452,6 +452,52 @@
       }
     },
     {
+      "name": "7.1 Create Booking For Admin Steps",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Booking for admin steps is created', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "pm.collectionVariables.set('adminBookingId', pm.response.json().data._id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"hotel\": \"{{hotelId}}\",\n  \"checkInDate\": \"{{checkInDate}}\",\n  \"checkOutDate\": \"{{checkOutDate}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{URL}}/bookings"
+      }
+    },
+    {
       "name": "8 Logout",
       "event": [
         {
@@ -530,23 +576,15 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Admin booking list returns 200', function () {",
+              "pm.test('Admin can view the user booking', function () {",
               "  pm.response.to.have.status(200);",
               "});",
               "const response = pm.response.json();",
-              "let otherBooking;",
-              "for (const booking of response.data) {",
-              "  if (booking.user !== pm.collectionVariables.get('userId') && booking.status === 'pending') {",
-              "    otherBooking = booking;",
-              "    break;",
-              "  }",
-              "}",
-              "pm.test('Admin sees a pending booking from another user', function () {",
-              "  pm.expect(otherBooking).to.exist;",
-              "});",
-              "if (otherBooking) {",
-              "  pm.collectionVariables.set('adminBookingId', otherBooking._id);",
-              "}"
+              "pm.test('Admin sees the pending booking from the demo user', function () {",
+              "  pm.expect(response.data._id).to.equal(pm.collectionVariables.get('adminBookingId'));",
+              "  pm.expect(response.data.user).to.equal(pm.collectionVariables.get('userId'));",
+              "  pm.expect(response.data.status).to.equal('pending');",
+              "});"
             ]
           }
         }
@@ -563,7 +601,7 @@
             }
           ]
         },
-        "url": "{{URL}}/bookings"
+        "url": "{{URL}}/bookings/{{adminBookingId}}"
       }
     },
     {
