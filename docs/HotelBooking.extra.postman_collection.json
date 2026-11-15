@@ -1,37 +1,24 @@
 {
   "info": {
-    "name": "Hotel Booking Extra Credit — Promotion, Payment, Loyalty",
+    "_postman_id": "fe4a660f-bdb6-4b17-a76f-5de2862958c4",
+    "name": "Hotel Booking Extra Credit - Promotion, Payment, Loyalty",
+    "description": "Run requests 1.1 to 4.2 in order. Set adminPassword in the selected Postman environment. Requires an existing user and at least one hotel. Creates three paid bookings; step 4.2 deletes the test promotion.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Run separately using the existing demo user. Payment is a local simulation that marks bookings paid and credits points. Set demoPassword in the selected Postman environment before running; keep its value private."
+    "_exporter_id": "2227551"
   },
-  "variable": [
-    {
-      "key": "URL",
-      "value": "http://localhost:5000/api/v1"
-    },
-    {
-      "key": "extraToken",
-      "value": ""
-    },
-    {
-      "key": "demoPassword",
-      "value": ""
-    }
-  ],
   "item": [
     {
-      "name": "Setup: Login Demo User",
+      "name": "1.1 Admin Login",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Demo user login returns 200', function () {",
-              "  pm.response.to.have.status(200);",
-              "});",
+              "pm.test('Admin login returns 200', function () { pm.response.to.have.status(200); });",
               "const response = pm.response.json();",
-              "pm.collectionVariables.set('extraToken', response.token);"
+              "pm.test('Admin token is returned', function () { pm.expect(response.token).to.be.a('string').and.not.empty; });",
+              "pm.collectionVariables.set('extraAdminToken', response.token);"
             ]
           }
         }
@@ -46,65 +33,106 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"demo@hotel.com\",\n  \"password\": \"{{demoPassword}}\"\n}",
+          "raw": "{\n  \"email\": \"admin@hotel.com\",\n  \"password\": \"{{adminPassword}}\"\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
         },
-        "url": "{{URL}}/auth/login"
-      }
+        "url": {
+          "raw": "{{URL}}/auth/login",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "response": []
     },
     {
-      "name": "Promotion — View Hotels",
+      "name": "1.2 Admin Create Promotion",
       "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.unset('promoId');",
+              "pm.collectionVariables.set('promoCode', 'EXTRA' + Date.now());"
+            ]
+          }
+        },
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Hotel list returns 200', function () {",
-              "  pm.response.to.have.status(200);",
+              "pm.test('Promotion creation returns 201', function () { pm.response.to.have.status(201); });",
+              "const promotion = pm.response.json().data;",
+              "pm.test('Promotion starts at 10 percent', function () {",
+              "  pm.expect(promotion.code).to.equal(pm.collectionVariables.get('promoCode'));",
+              "  pm.expect(promotion.discountValue).to.equal(10);",
               "});",
-              "const response = pm.response.json();",
-              "pm.test('There are at least 20 hotels', function () {",
-              "  pm.expect(response.data.length).to.be.at.least(20);",
-              "});",
-              "const hotel = response.data.find(function (item) {",
-              "  return item.pricePerNight >= 3000;",
-              "});",
-              "pm.collectionVariables.set('extraHotelId', hotel._id);",
-              "pm.collectionVariables.set('extraHotelPrice', hotel.pricePerNight);",
-              "pm.collectionVariables.set('promoCheckIn', new Date(Date.now() + 40 * 86400000).toISOString());",
-              "pm.collectionVariables.set('promoCheckOut', new Date(Date.now() + 42 * 86400000).toISOString());",
-              "pm.collectionVariables.set('fixedCheckIn', new Date(Date.now() + 45 * 86400000).toISOString());",
-              "pm.collectionVariables.set('fixedCheckOut', new Date(Date.now() + 47 * 86400000).toISOString());",
-              "pm.collectionVariables.set('qrCheckIn', new Date(Date.now() + 50 * 86400000).toISOString());",
-              "pm.collectionVariables.set('qrCheckOut', new Date(Date.now() + 52 * 86400000).toISOString());"
+              "pm.collectionVariables.set('promoId', promotion._id);"
             ]
           }
         }
       ],
       "request": {
-        "method": "GET",
-        "url": "{{URL}}/hotels"
-      }
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{extraAdminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{promoCode}}\",\n  \"discountType\": \"percentage\",\n  \"discountValue\": 10\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/promotions",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "promotions"
+          ]
+        }
+      },
+      "response": []
     },
     {
-      "name": "Promotion — View WELCOME10",
+      "name": "1.3 Get All Active Promotions",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('WELCOME10 returns 200', function () {",
-              "  pm.response.to.have.status(200);",
-              "});",
-              "const response = pm.response.json();",
-              "pm.test('Discount is 10 percent', function () {",
-              "  pm.expect(response.data.discountValue).to.equal(10);",
+              "pm.test('Active promotions return 200', function () { pm.response.to.have.status(200); });",
+              "const promotions = pm.response.json().data;",
+              "pm.test('Created promotion is in the active list', function () {",
+              "  pm.expect(promotions.some(function (promotion) { return promotion._id === pm.collectionVariables.get('promoId'); })).to.be.true;",
               "});"
             ]
           }
@@ -112,44 +140,49 @@
       ],
       "request": {
         "method": "GET",
-        "url": "{{URL}}/promotions/WELCOME10"
-      }
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/promotions",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "promotions"
+          ]
+        }
+      },
+      "response": []
     },
     {
-      "name": "Promotion — Create Booking with WELCOME10",
+      "name": "1.4 Admin Update Promotion",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('WELCOME10 booking returns 201', function () {",
-              "  pm.response.to.have.status(201);",
-              "});",
-              "const booking = pm.response.json().data;",
-              "const discount = booking.subTotal * 0.1;",
-              "pm.test('Discount and total are correct', function () {",
-              "  pm.expect(booking.discount).to.equal(discount);",
-              "  pm.expect(booking.totalPrice).to.equal(booking.subTotal - discount);",
-              "});",
-              "pm.collectionVariables.set('creditBookingId', booking._id);",
-              "pm.collectionVariables.set('creditTotal', booking.totalPrice);"
+              "pm.test('Promotion update returns 200', function () { pm.response.to.have.status(200); });",
+              "const promotion = pm.response.json().data;",
+              "pm.test('Promotion is updated to 20 percent', function () {",
+              "  pm.expect(promotion._id).to.equal(pm.collectionVariables.get('promoId'));",
+              "  pm.expect(promotion.discountValue).to.equal(20);",
+              "});"
             ]
           }
         }
       ],
       "request": {
-        "method": "POST",
         "auth": {
           "type": "bearer",
           "bearer": [
             {
               "key": "token",
-              "value": "{{extraToken}}",
+              "value": "{{extraAdminToken}}",
               "type": "string"
             }
           ]
         },
+        "method": "PUT",
         "header": [
           {
             "key": "Content-Type",
@@ -158,48 +191,246 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"hotel\": \"{{extraHotelId}}\",\n  \"checkInDate\": \"{{promoCheckIn}}\",\n  \"checkOutDate\": \"{{promoCheckOut}}\",\n  \"promoCode\": \"WELCOME10\"\n}",
+          "raw": "{\n  \"discountValue\": 20\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
         },
-        "url": "{{URL}}/bookings"
-      }
+        "url": {
+          "raw": "{{URL}}/promotions/manage/{{promoId}}",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "promotions",
+            "manage",
+            "{{promoId}}"
+          ]
+        }
+      },
+      "response": []
     },
     {
-      "name": "Payment — Credit Card Simulation",
+      "name": "1.5 Get Promotion By Code",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Credit card payment returns 200', function () {",
-              "  pm.response.to.have.status(200);",
-              "});",
-              "const response = pm.response.json().data;",
-              "pm.test('Credit card payment earns points', function () {",
-              "  pm.expect(response.pointsEarned).to.equal(Math.floor(response.totalPrice / 100));",
-              "});",
-              "pm.collectionVariables.set('pointsAfterCredit', response.userAccumulatedPoints);"
+              "pm.test('Promotion lookup returns 200', function () { pm.response.to.have.status(200); });",
+              "const promotion = pm.response.json().data;",
+              "pm.test('Public lookup shows the updated discount', function () {",
+              "  pm.expect(promotion.code).to.equal(pm.collectionVariables.get('promoCode'));",
+              "  pm.expect(promotion.discountValue).to.equal(20);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/promotions/{{promoCode}}",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "promotions",
+            "{{promoCode}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2.1 Login User",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('User login returns 200', function () { pm.response.to.have.status(200); });\nconst response = pm.response.json();\npm.test('User login returns points and token', function () {\n  pm.expect(response.role).to.equal('user');\n  pm.expect(response.points).to.be.a('number');\n  pm.expect(response.token).to.be.a('string').and.not.empty;\n});\npm.collectionVariables.set('startingPoints', response.points);\npm.collectionVariables.set('extraUserToken', response.token);"
             ]
           }
         }
       ],
       "request": {
         "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"userTest@example.com\",\n  \"password\": \"password123\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/auth/login",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2.2 Get Hotels",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Hotel list returns 200', function () { pm.response.to.have.status(200); });",
+              "const hotels = pm.response.json().data;",
+              "pm.test('At least one hotel is available', function () { pm.expect(hotels.length).to.be.above(0); });",
+              "pm.collectionVariables.set('hotelId', hotels[0]._id);",
+              "pm.collectionVariables.set('checkIn1', new Date(Date.now() + 40 * 86400000).toISOString());",
+              "pm.collectionVariables.set('checkOut1', new Date(Date.now() + 42 * 86400000).toISOString());",
+              "pm.collectionVariables.set('checkIn2', new Date(Date.now() + 45 * 86400000).toISOString());",
+              "pm.collectionVariables.set('checkOut2', new Date(Date.now() + 47 * 86400000).toISOString());",
+              "pm.collectionVariables.set('checkIn3', new Date(Date.now() + 50 * 86400000).toISOString());",
+              "pm.collectionVariables.set('checkOut3', new Date(Date.now() + 52 * 86400000).toISOString());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/hotels",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "hotels"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2.3 Create Booking With Promo Code",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.unset('booking1Id');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Promotional booking returns 201', function () { pm.response.to.have.status(201); });",
+              "const booking = pm.response.json().data;",
+              "pm.test('Booking applies the 20 percent promotion', function () {",
+              "  pm.expect(booking.promoCode).to.equal(pm.collectionVariables.get('promoCode'));",
+              "  pm.expect(booking.discount).to.equal(Math.round(booking.subTotal * 0.2 * 100) / 100);",
+              "  pm.expect(booking.totalPrice).to.equal(Math.round((booking.subTotal - booking.discount) * 100) / 100);",
+              "  pm.expect(booking.status).to.equal('pending');",
+              "});",
+              "pm.collectionVariables.set('booking1Id', booking._id);"
+            ]
+          }
+        }
+      ],
+      "request": {
         "auth": {
           "type": "bearer",
           "bearer": [
             {
               "key": "token",
-              "value": "{{extraToken}}",
+              "value": "{{extraUserToken}}",
               "type": "string"
             }
           ]
         },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"hotel\": \"{{hotelId}}\",\n  \"checkInDate\": \"{{checkIn1}}\",\n  \"checkOutDate\": \"{{checkOut1}}\",\n  \"promoCode\": \"{{promoCode}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/bookings",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "bookings"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "3.1 Pay Booking (credit_card)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Credit card payment returns 200', function () { pm.response.to.have.status(200); });",
+              "const payment = pm.response.json().data;",
+              "pm.test('Credit card payment records points', function () {",
+              "  pm.expect(payment.bookingId).to.equal(pm.collectionVariables.get('booking1Id'));",
+              "  pm.expect(payment.status).to.equal('paid');",
+              "  pm.expect(payment.payment.method).to.equal('credit_card');",
+              "  pm.expect(payment.payment.transactionId).to.be.a('string').and.not.empty;",
+              "  pm.expect(Number.isNaN(Date.parse(payment.payment.paidAt))).to.be.false;",
+              "  pm.expect(payment.pointsEarned).to.equal(Math.floor(payment.totalPrice / 100));",
+              "  pm.expect(payment.userAccumulatedPoints).to.equal(Number(pm.collectionVariables.get('startingPoints')) + payment.pointsEarned);",
+              "});",
+              "pm.collectionVariables.set('points1', payment.pointsEarned);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{extraUserToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
         "header": [
           {
             "key": "Content-Type",
@@ -215,36 +446,46 @@
             }
           }
         },
-        "url": "{{URL}}/bookings/{{creditBookingId}}/pay"
-      }
+        "url": {
+          "raw": "{{URL}}/bookings/{{booking1Id}}/pay",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "bookings",
+            "{{booking1Id}}",
+            "pay"
+          ]
+        }
+      },
+      "response": []
     },
     {
-      "name": "Loyalty — Duplicate Payment Rejected",
+      "name": "3.2 Reject Duplicate Payment",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Second payment returns 400', function () {",
-              "  pm.response.to.have.status(400);",
-              "});"
+              "pm.test('Duplicate payment returns 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Duplicate payment is rejected', function () { pm.expect(pm.response.json().success).to.be.false; });"
             ]
           }
         }
       ],
       "request": {
-        "method": "POST",
         "auth": {
           "type": "bearer",
           "bearer": [
             {
               "key": "token",
-              "value": "{{extraToken}}",
+              "value": "{{extraUserToken}}",
               "type": "string"
             }
           ]
         },
+        "method": "POST",
         "header": [
           {
             "key": "Content-Type",
@@ -260,76 +501,60 @@
             }
           }
         },
-        "url": "{{URL}}/bookings/{{creditBookingId}}/pay"
-      }
+        "url": {
+          "raw": "{{URL}}/bookings/{{booking1Id}}/pay",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "bookings",
+            "{{booking1Id}}",
+            "pay"
+          ]
+        }
+      },
+      "response": []
     },
     {
-      "name": "Loyalty — View Points After Credit Card",
+      "name": "3.3 Create Booking 2 For Debit Card",
       "event": [
         {
-          "listen": "test",
+          "listen": "prerequest",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Points are shown', function () {",
-              "  pm.response.to.have.status(200);",
-              "});",
-              "const response = pm.response.json();",
-              "pm.test('Points were credited once', function () {",
-              "  pm.expect(response.data.points).to.equal(Number(pm.collectionVariables.get('pointsAfterCredit')));",
-              "});"
+              "pm.collectionVariables.unset('booking2Id');"
             ]
           }
-        }
-      ],
-      "request": {
-        "method": "GET",
-        "auth": {
-          "type": "bearer",
-          "bearer": [
-            {
-              "key": "token",
-              "value": "{{extraToken}}",
-              "type": "string"
-            }
-          ]
         },
-        "url": "{{URL}}/auth/me"
-      }
-    },
-    {
-      "name": "Promotion — Create Booking with DISCOUNT500",
-      "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('DISCOUNT500 booking returns 201', function () {",
-              "  pm.response.to.have.status(201);",
-              "});",
+              "pm.test('Nested booking route returns 201', function () { pm.response.to.have.status(201); });",
               "const booking = pm.response.json().data;",
-              "pm.test('Discount is 500 THB', function () {",
-              "  pm.expect(booking.discount).to.equal(500);",
-              "  pm.expect(booking.totalPrice).to.equal(booking.subTotal - 500);",
+              "pm.test('Second booking is pending', function () {",
+              "  pm.expect(booking.hotel).to.equal(pm.collectionVariables.get('hotelId'));",
+              "  pm.expect(booking.status).to.equal('pending');",
               "});",
-              "pm.collectionVariables.set('debitBookingId', booking._id);"
+              "pm.collectionVariables.set('booking2Id', booking._id);"
             ]
           }
         }
       ],
       "request": {
-        "method": "POST",
         "auth": {
           "type": "bearer",
           "bearer": [
             {
               "key": "token",
-              "value": "{{extraToken}}",
+              "value": "{{extraUserToken}}",
               "type": "string"
             }
           ]
         },
+        "method": "POST",
         "header": [
           {
             "key": "Content-Type",
@@ -338,48 +563,61 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"hotel\": \"{{extraHotelId}}\",\n  \"checkInDate\": \"{{fixedCheckIn}}\",\n  \"checkOutDate\": \"{{fixedCheckOut}}\",\n  \"promoCode\": \"DISCOUNT500\"\n}",
+          "raw": "{\n  \"checkInDate\": \"{{checkIn2}}\",\n  \"checkOutDate\": \"{{checkOut2}}\"\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
         },
-        "url": "{{URL}}/bookings"
-      }
+        "url": {
+          "raw": "{{URL}}/hotels/{{hotelId}}/bookings",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "hotels",
+            "{{hotelId}}",
+            "bookings"
+          ]
+        }
+      },
+      "response": []
     },
     {
-      "name": "Payment — Debit Card Simulation",
+      "name": "3.4 Pay Booking 2 (debit_card)",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Debit card payment returns 200', function () {",
-              "  pm.response.to.have.status(200);",
+              "pm.test('Debit card payment returns 200', function () { pm.response.to.have.status(200); });",
+              "const payment = pm.response.json().data;",
+              "pm.test('Debit card payment adds points', function () {",
+              "  pm.expect(payment.bookingId).to.equal(pm.collectionVariables.get('booking2Id'));",
+              "  pm.expect(payment.status).to.equal('paid');",
+              "  pm.expect(payment.payment.method).to.equal('debit_card');",
+              "  pm.expect(payment.pointsEarned).to.equal(Math.floor(payment.totalPrice / 100));",
+              "  pm.expect(payment.userAccumulatedPoints).to.equal(Number(pm.collectionVariables.get('startingPoints')) + Number(pm.collectionVariables.get('points1')) + payment.pointsEarned);",
               "});",
-              "const response = pm.response.json().data;",
-              "pm.test('Debit card payment earns points', function () {",
-              "  pm.expect(response.pointsEarned).to.equal(Math.floor(response.totalPrice / 100));",
-              "});",
-              "pm.collectionVariables.set('pointsAfterDebit', response.userAccumulatedPoints);"
+              "pm.collectionVariables.set('points2', payment.pointsEarned);"
             ]
           }
         }
       ],
       "request": {
-        "method": "POST",
         "auth": {
           "type": "bearer",
           "bearer": [
             {
               "key": "token",
-              "value": "{{extraToken}}",
+              "value": "{{extraUserToken}}",
               "type": "string"
             }
           ]
         },
+        "method": "POST",
         "header": [
           {
             "key": "Content-Type",
@@ -395,38 +633,57 @@
             }
           }
         },
-        "url": "{{URL}}/bookings/{{debitBookingId}}/pay"
-      }
+        "url": {
+          "raw": "{{URL}}/bookings/{{booking2Id}}/pay",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "bookings",
+            "{{booking2Id}}",
+            "pay"
+          ]
+        }
+      },
+      "response": []
     },
     {
-      "name": "Payment — Create Booking for QR Simulation",
+      "name": "3.5 Create Booking 3 For QR Code",
       "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.unset('booking3Id');"
+            ]
+          }
+        },
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('QR booking returns 201', function () {",
-              "  pm.response.to.have.status(201);",
-              "});",
-              "const response = pm.response.json();",
-              "pm.collectionVariables.set('qrBookingId', response.data._id);"
+              "pm.test('Third booking returns 201', function () { pm.response.to.have.status(201); });",
+              "const booking = pm.response.json().data;",
+              "pm.test('Third booking is pending', function () { pm.expect(booking.status).to.equal('pending'); });",
+              "pm.collectionVariables.set('booking3Id', booking._id);"
             ]
           }
         }
       ],
       "request": {
-        "method": "POST",
         "auth": {
           "type": "bearer",
           "bearer": [
             {
               "key": "token",
-              "value": "{{extraToken}}",
+              "value": "{{extraUserToken}}",
               "type": "string"
             }
           ]
         },
+        "method": "POST",
         "header": [
           {
             "key": "Content-Type",
@@ -435,48 +692,59 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"hotel\": \"{{extraHotelId}}\",\n  \"checkInDate\": \"{{qrCheckIn}}\",\n  \"checkOutDate\": \"{{qrCheckOut}}\"\n}",
+          "raw": "{\n  \"hotel\": \"{{hotelId}}\",\n  \"checkInDate\": \"{{checkIn3}}\",\n  \"checkOutDate\": \"{{checkOut3}}\"\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
         },
-        "url": "{{URL}}/bookings"
-      }
+        "url": {
+          "raw": "{{URL}}/bookings",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "bookings"
+          ]
+        }
+      },
+      "response": []
     },
     {
-      "name": "Payment — QR Code Simulation",
+      "name": "3.6 Pay Booking 3 (qr_code)",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('QR payment returns 200', function () {",
-              "  pm.response.to.have.status(200);",
+              "pm.test('QR code payment returns 200', function () { pm.response.to.have.status(200); });",
+              "const payment = pm.response.json().data;",
+              "pm.test('QR code payment adds points', function () {",
+              "  pm.expect(payment.bookingId).to.equal(pm.collectionVariables.get('booking3Id'));",
+              "  pm.expect(payment.status).to.equal('paid');",
+              "  pm.expect(payment.payment.method).to.equal('qr_code');",
+              "  pm.expect(payment.pointsEarned).to.equal(Math.floor(payment.totalPrice / 100));",
+              "  pm.expect(payment.userAccumulatedPoints).to.equal(Number(pm.collectionVariables.get('startingPoints')) + Number(pm.collectionVariables.get('points1')) + Number(pm.collectionVariables.get('points2')) + payment.pointsEarned);",
               "});",
-              "const response = pm.response.json().data;",
-              "pm.test('QR payment earns points', function () {",
-              "  pm.expect(response.pointsEarned).to.equal(Math.floor(response.totalPrice / 100));",
-              "});",
-              "pm.collectionVariables.set('expectedTotalPoints', response.userAccumulatedPoints);"
+              "pm.collectionVariables.set('points3', payment.pointsEarned);"
             ]
           }
         }
       ],
       "request": {
-        "method": "POST",
         "auth": {
           "type": "bearer",
           "bearer": [
             {
               "key": "token",
-              "value": "{{extraToken}}",
+              "value": "{{extraUserToken}}",
               "type": "string"
             }
           ]
         },
+        "method": "POST",
         "header": [
           {
             "key": "Content-Type",
@@ -492,42 +760,116 @@
             }
           }
         },
-        "url": "{{URL}}/bookings/{{qrBookingId}}/pay"
-      }
+        "url": {
+          "raw": "{{URL}}/bookings/{{booking3Id}}/pay",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "bookings",
+            "{{booking3Id}}",
+            "pay"
+          ]
+        }
+      },
+      "response": []
     },
     {
-      "name": "Loyalty — View Accumulated Points",
+      "name": "4.1 View Accumulated Loyalty Points",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Current user returns 200', function () {",
-              "  pm.response.to.have.status(200);",
-              "});",
-              "const response = pm.response.json();",
-              "pm.test('Total points match all payments', function () {",
-              "  pm.expect(response.data.points).to.equal(Number(pm.collectionVariables.get('expectedTotalPoints')));",
+              "pm.test('Current user returns 200', function () { pm.response.to.have.status(200); });",
+              "const user = pm.response.json().data;",
+              "const totalPoints = Number(pm.collectionVariables.get('startingPoints')) + Number(pm.collectionVariables.get('points1')) + Number(pm.collectionVariables.get('points2')) + Number(pm.collectionVariables.get('points3'));",
+              "pm.test('Points equal the sum from all three payments', function () {",
+              "  pm.expect(user.points).to.equal(totalPoints);",
+              "  pm.expect(user.points).to.be.above(0);",
               "});"
             ]
           }
         }
       ],
       "request": {
-        "method": "GET",
         "auth": {
           "type": "bearer",
           "bearer": [
             {
               "key": "token",
-              "value": "{{extraToken}}",
+              "value": "{{extraUserToken}}",
               "type": "string"
             }
           ]
         },
-        "url": "{{URL}}/auth/me"
-      }
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/auth/me",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "auth",
+            "me"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "4.2 Admin Delete Test Promotion",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Test promotion deletion returns 200', function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) {",
+              "  ['extraAdminToken', 'promoCode', 'promoId', 'extraUserToken', 'hotelId',",
+              "    'checkIn1', 'checkOut1', 'checkIn2', 'checkOut2', 'checkIn3', 'checkOut3',",
+              "    'booking1Id', 'booking2Id', 'booking3Id', 'startingPoints', 'points1', 'points2', 'points3'",
+              "  ].forEach(function (key) { pm.collectionVariables.unset(key); });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{extraAdminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/promotions/manage/{{promoId}}",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "promotions",
+            "manage",
+            "{{promoId}}"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "URL",
+      "value": "http://localhost:5000/api/v1"
     }
   ]
 }
