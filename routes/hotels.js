@@ -7,8 +7,11 @@ const {
   deleteHotel,
 } = require('../controllers/hotels');
 const { protect, authorize } = require('../middleware/auth');
+const bookingRouter = require('./bookings');
 
 const router = express.Router();
+
+router.use('/:hotelId/bookings', bookingRouter);
 
 router
   .route('/')
