@@ -28,17 +28,15 @@ sequenceDiagram
     DB-->>-Hotel: hotel
     Hotel-->>-Controller: hotel
 
-    Controller->>+Booking: new Booking(bookingData)
-
     opt has promoCode
-        Controller->>+Promotion: findOne({ promoCode })
+        Controller->>+Promotion: findOne({ code: promoCode })
         Promotion->>+DB: query promotion
         DB-->>-Promotion: promotion
         Promotion-->>-Controller: promotion
-        Controller->>Booking: applyPromotion(promotion)
+        Controller->>Controller: validate promotion & calculate discount
     end
 
-    Controller->>Booking: save()
+    Controller->>+Booking: create(bookingData)
     Booking->>+DB: insert booking
     DB-->>-Booking: booking
     Booking-->>-Controller: booking
@@ -48,7 +46,7 @@ sequenceDiagram
 
 ## เงื่อนไขที่ใช้จริง
 
-- ต้องมี `checkInDate` และ `checkOutDate` ที่แปลงเป็นวันที่ได้ โดยวันออกต้องหลังวันเข้า และจองได้ไม่เกิน 30 คืน หากไม่ผ่านจะได้ HTTP 400
-- หากส่ง `promoCode` ระบบค้นหาโปรโมชันแล้วเรียก `booking.applyPromotion(promotion)` เพื่อตรวจ `isActive`, `validUntil` และคำนวณส่วนลด (`percentage` หรือ `fixed` โดยไม่เกิน `subTotal`) หากไม่ผ่านจะได้ HTTP 400
+- ต้องมี `checkInDate` และ `checkOutDate` ที่แปลงเป็นวันที่ได้ โดยวันออกต้องหลังวันเข้า และจองได้ไม่เกิน `hotel.maxNights` (ค่าเริ่มต้น 30 คืน) หากไม่ผ่านจะได้ HTTP 400
+- หากส่ง `promoCode` ระบบค้นหาโปรโมชันแล้วตรวจ `isActive`, `validUntil` และคำนวณส่วนลด (`percentage` หรือ `fixed` โดยไม่เกิน `subTotal`) ใน `controllers/bookings.js` หากไม่ผ่านจะได้ HTTP 400
 - หากไม่ส่ง `promoCode` ค่า `discount` เป็น 0; Booking ใหม่มี `status` เป็น `pending` และผูกกับ User ที่อยู่ใน JWT
 - รองรับทั้ง `POST /api/v1/bookings` และ `POST /api/v1/hotels/:hotelId/bookings` โดยเรียก `addBooking` เดียวกัน
