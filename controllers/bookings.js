@@ -2,6 +2,7 @@ const Booking = require('../models/Booking');
 const Hotel = require('../models/Hotel');
 const User = require('../models/User');
 const Promotion = require('../models/Promotion');
+const { processPayment } = require('../services/paymentGateway');
 
 //@desc    Get all bookings
 //@route   GET /api/v1/bookings
@@ -354,14 +355,28 @@ exports.payBooking = async (req, res, next) => {
       });
     }
 
+    // Call mock payment gateway
+    const paymentResult = await processPayment({
+      amount: booking.totalPrice,
+      method: paymentMethod,
+      bookingId: booking._id,
+    });
+
+    if (!paymentResult.success) {
+      return res.status(402).json({
+        success: false,
+        message: paymentResult.message || 'Payment failed',
+      });
+    }
+
     // Calculate points: 1 point per 100 THB spent
     const pointsEarned = Math.floor(booking.totalPrice / 100);
 
     booking.status = 'paid';
     booking.payment = {
       method: paymentMethod,
-      paidAt: new Date(),
-      transactionId: `TXN-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      paidAt: paymentResult.paidAt,
+      transactionId: paymentResult.transactionId,
     };
     booking.pointsEarned = pointsEarned;
     await booking.save();
