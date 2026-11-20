@@ -18,16 +18,9 @@ const PromotionSchema = new mongoose.Schema({
     type: Number,
     required: [true, 'Please add discount value'],
     min: [0, 'Discount value must be at least 0'],
-    validate: {
-      validator: function (value) {
-        return this.discountType !== 'percentage' || value <= 100;
-      },
-      message: 'Percentage discount cannot be more than 100',
-    },
   },
   validUntil: {
     type: Date,
-    default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
   },
   isActive: {
     type: Boolean,

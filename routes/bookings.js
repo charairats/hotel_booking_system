@@ -4,7 +4,7 @@ const {
   getBooking,
   addBooking,
   updateBooking,
-  deleteBooking,
+  cancelBooking,
   payBooking,
 } = require('../controllers/bookings');
 
@@ -21,7 +21,7 @@ router
   .route('/:id')
   .get(protect, getBooking)
   .put(protect, authorize('admin', 'user'), updateBooking)
-  .delete(protect, authorize('admin', 'user'), deleteBooking);
+  .delete(protect, authorize('admin', 'user'), cancelBooking);
 
 router.route('/:id/pay').post(protect, authorize('admin', 'user'), payBooking);
 

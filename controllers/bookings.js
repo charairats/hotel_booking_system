@@ -113,7 +113,7 @@ exports.addBooking = async (req, res, next) => {
     const checkIn = new Date(checkInDate);
     const checkOut = new Date(checkOutDate);
 
-    if (Number.isNaN(checkIn.getTime()) || Number.isNaN(checkOut.getTime())) {
+    if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
       return res.status(400).json({
         success: false,
         message: 'Invalid check-in or check-out date format',
@@ -132,51 +132,48 @@ exports.addBooking = async (req, res, next) => {
     const diffTime = checkOut.getTime() - checkIn.getTime();
     const numOfNights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    // Condition 2: Max 30 nights constraint
-    if (numOfNights > 30) {
+    // Condition 2: Max nights constraint from hotel model
+    if (numOfNights > hotel.maxNights) {
       return res.status(400).json({
         success: false,
-        message: `Cannot book more than 30 nights. Requested: ${numOfNights} nights`,
+        message: `Cannot book more than ${hotel.maxNights} nights. Requested: ${numOfNights} nights`,
       });
     }
 
-    // Calculate subTotal and apply a valid promotion, if supplied
-    const subTotal = Math.round(numOfNights * hotelPrice * 100) / 100;
-    let discount = 0;
+    // Calculate price and apply promotion code if provided
+    const subTotal = numOfNights * hotelPrice;
     let promoCode;
+    let discount = 0;
 
-    if (req.body.promoCode !== undefined && req.body.promoCode !== null) {
-      if (typeof req.body.promoCode !== 'string' || !req.body.promoCode.trim()) {
-        return res.status(400).json({ success: false, message: 'Please provide a valid promoCode' });
-      }
-
+    if (req.body.promoCode) {
       promoCode = req.body.promoCode.trim().toUpperCase();
       const promotion = await Promotion.findOne({ code: promoCode });
 
       if (!promotion || !promotion.isActive) {
-        return res.status(400).json({ success: false, message: 'Invalid or inactive promotion code' });
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or inactive promotion code',
+        });
       }
 
       if (promotion.validUntil && promotion.validUntil <= new Date()) {
-        return res.status(400).json({ success: false, message: 'Promotion code has expired' });
-      }
-
-      if (
-        !['percentage', 'fixed'].includes(promotion.discountType) ||
-        !Number.isFinite(promotion.discountValue) ||
-        promotion.discountValue < 0 ||
-        (promotion.discountType === 'percentage' && promotion.discountValue > 100)
-      ) {
-        return res.status(400).json({ success: false, message: 'Promotion discount is invalid' });
+        return res.status(400).json({
+          success: false,
+          message: 'Promotion code has expired',
+        });
       }
 
       if (promotion.discountType === 'percentage') {
-        discount = subTotal * promotion.discountValue / 100;
+        discount = (subTotal * promotion.discountValue) / 100;
       } else {
         discount = promotion.discountValue;
       }
 
-      discount = Math.min(subTotal, Math.round(discount * 100) / 100);
+      // Discount cannot exceed subTotal
+      if (discount > subTotal) {
+        discount = subTotal;
+      }
+      discount = Math.round(discount * 100) / 100;
     }
 
     const totalPrice = Math.round((subTotal - discount) * 100) / 100;
@@ -243,15 +240,22 @@ exports.updateBooking = async (req, res, next) => {
     const diffTime = checkOut.getTime() - checkIn.getTime();
     const numOfNights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (numOfNights > 30) {
-      return res.status(400).json({
+    const hotel = await Hotel.findById(booking.hotel);
+    if (!hotel) {
+      return res.status(404).json({
         success: false,
-        message: `Cannot book more than 30 nights. Requested: ${numOfNights} nights`,
+        message: `No hotel with the id of ${booking.hotel}`,
       });
     }
 
-    const hotel = await Hotel.findById(booking.hotel);
-    const hotelPrice = hotel ? hotel.pricePerNight : 1000;
+    if (numOfNights > hotel.maxNights) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot book more than ${hotel.maxNights} nights. Requested: ${numOfNights} nights`,
+      });
+    }
+
+    const hotelPrice = hotel.pricePerNight;
 
     const subTotal = Math.round(numOfNights * hotelPrice * 100) / 100;
     const discount = Math.min(subTotal, booking.discount || 0);
@@ -263,7 +267,7 @@ exports.updateBooking = async (req, res, next) => {
     req.body.totalPrice = Math.round((subTotal - discount) * 100) / 100;
 
     booking = await Booking.findByIdAndUpdate(req.params.id, req.body, {
-      returnDocument: 'after',
+      new: true,
       runValidators: true,
     });
 
@@ -277,10 +281,10 @@ exports.updateBooking = async (req, res, next) => {
   }
 };
 
-//@desc    Delete booking
+//@desc    Cancel booking
 //@route   DELETE /api/v1/bookings/:id
 //@access  Private
-exports.deleteBooking = async (req, res, next) => {
+exports.cancelBooking = async (req, res, next) => {
   try {
     const booking = await Booking.findById(req.params.id);
 
@@ -366,7 +370,7 @@ exports.payBooking = async (req, res, next) => {
     const user = await User.findByIdAndUpdate(
       booking.user,
       { $inc: { points: pointsEarned } },
-      { returnDocument: 'after' },
+      { new: true },
     );
 
     res.status(200).json({

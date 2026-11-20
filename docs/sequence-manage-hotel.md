@@ -56,4 +56,4 @@ sequenceDiagram
     end
 ```
 
-ข้อมูลโรงแรมเป็นไปตาม `models/Hotel.js` ได้แก่ `name`, `address`, `district`, `province`, `postalcode` และ `pricePerNight`; ฟิลด์ที่ไม่บังคับ ได้แก่ `tel` และ `region`
+ข้อมูลโรงแรมเป็นไปตาม `models/Hotel.js` ได้แก่ `name`, `address`, `district`, `province`, `postalcode` และ `pricePerNight`; ฟิลด์ที่ไม่บังคับ ได้แก่ `tel`, `region` และ `maxNights` (ค่าเริ่มต้น 30 คืน)
