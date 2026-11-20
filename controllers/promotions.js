@@ -7,9 +7,13 @@ exports.getPromotions = async (req, res, next) => {
   try {
     const promotions = await Promotion.find({
       isActive: true,
-      $or: [{ validUntil: { $gt: new Date() } }, { validUntil: null }],
+      validUntil: { $gt: new Date() },
     });
-    res.status(200).json({ success: true, count: promotions.length, data: promotions });
+    res.status(200).json({
+      success: true,
+      count: promotions.length,
+      data: promotions,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Cannot find promotions' });
@@ -25,11 +29,17 @@ exports.getPromotionByCode = async (req, res, next) => {
     const promotion = await Promotion.findOne({ code, isActive: true });
 
     if (!promotion) {
-      return res.status(404).json({ success: false, message: `No active promotion with code ${code}` });
+      return res.status(404).json({
+        success: false,
+        message: `No active promotion with code ${code}`,
+      });
     }
 
     if (promotion.validUntil && promotion.validUntil <= new Date()) {
-      return res.status(400).json({ success: false, message: `Promotion code ${code} has expired` });
+      return res.status(400).json({
+        success: false,
+        message: `Promotion code ${code} has expired`,
+      });
     }
 
     res.status(200).json({ success: true, data: promotion });
@@ -44,20 +54,31 @@ exports.getPromotionByCode = async (req, res, next) => {
 //@access  Private/Admin
 exports.createPromotion = async (req, res, next) => {
   try {
-    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
-      return res.status(400).json({ success: false, message: 'Please provide promotion details' });
+    const discountType = req.body.discountType || 'percentage';
+    if (discountType === 'percentage' && req.body.discountValue > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Percentage discount cannot be more than 100',
+      });
     }
 
-    if (req.body.validUntil !== undefined && new Date(req.body.validUntil) <= new Date()) {
-      return res.status(400).json({ success: false, message: 'Promotion expiry must be in the future' });
+    if (req.body.validUntil) {
+      if (new Date(req.body.validUntil) <= new Date()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Promotion expiry must be in the future',
+        });
+      }
+    } else {
+      // Default expiry: 30 days from now
+      req.body.validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     }
 
     const promotion = await Promotion.create(req.body);
     res.status(201).json({ success: true, data: promotion });
   } catch (err) {
     console.error(err);
-    const statusCode = err.name === 'ValidationError' || err.name === 'CastError' || err.code === 11000 ? 400 : 500;
-    res.status(statusCode).json({ success: false, message: statusCode === 400 ? err.message : 'Cannot create promotion' });
+    res.status(400).json({ success: false, message: err.message });
   }
 };
 
@@ -66,37 +87,37 @@ exports.createPromotion = async (req, res, next) => {
 //@access  Private/Admin
 exports.updatePromotion = async (req, res, next) => {
   try {
-    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
-      return res.status(400).json({ success: false, message: 'Please provide promotion details' });
-    }
-
     const currentPromotion = await Promotion.findById(req.params.id);
 
     if (!currentPromotion) {
-      return res.status(404).json({ success: false, message: `No promotion with the id of ${req.params.id}` });
+      return res.status(404).json({
+        success: false,
+        message: `No promotion with the id of ${req.params.id}`,
+      });
     }
 
-    const discountType = req.body.discountType ?? currentPromotion.discountType;
-    const discountValue = req.body.discountValue ?? currentPromotion.discountValue;
+    const discountType = req.body.discountType || currentPromotion.discountType;
+    const discountValue =
+      req.body.discountValue !== undefined
+        ? req.body.discountValue
+        : currentPromotion.discountValue;
 
-    if (discountType === 'percentage' && Number(discountValue) > 100) {
-      return res.status(400).json({ success: false, message: 'Percentage discount cannot be more than 100' });
+    if (discountType === 'percentage' && discountValue > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Percentage discount cannot be more than 100',
+      });
     }
 
     const promotion = await Promotion.findByIdAndUpdate(req.params.id, req.body, {
-      returnDocument: 'after',
+      new: true,
       runValidators: true,
     });
-
-    if (!promotion) {
-      return res.status(404).json({ success: false, message: `No promotion with the id of ${req.params.id}` });
-    }
 
     res.status(200).json({ success: true, data: promotion });
   } catch (err) {
     console.error(err);
-    const statusCode = err.name === 'CastError' || err.name === 'ValidationError' || err.code === 11000 ? 400 : 500;
-    res.status(statusCode).json({ success: false, message: statusCode === 400 ? err.message : 'Cannot update promotion' });
+    res.status(400).json({ success: false, message: err.message });
   }
 };
 
@@ -108,13 +129,15 @@ exports.deletePromotion = async (req, res, next) => {
     const promotion = await Promotion.findByIdAndDelete(req.params.id);
 
     if (!promotion) {
-      return res.status(404).json({ success: false, message: `No promotion with the id of ${req.params.id}` });
+      return res.status(404).json({
+        success: false,
+        message: `No promotion with the id of ${req.params.id}`,
+      });
     }
 
     res.status(200).json({ success: true, data: {} });
   } catch (err) {
     console.error(err);
-    const statusCode = err.name === 'CastError' ? 400 : 500;
-    res.status(statusCode).json({ success: false, message: statusCode === 400 ? 'Invalid promotion ID' : 'Cannot delete promotion' });
+    res.status(400).json({ success: false, message: 'Cannot delete promotion' });
   }
 };

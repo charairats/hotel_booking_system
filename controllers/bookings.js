@@ -113,7 +113,7 @@ exports.addBooking = async (req, res, next) => {
     const checkIn = new Date(checkInDate);
     const checkOut = new Date(checkOutDate);
 
-    if (Number.isNaN(checkIn.getTime()) || Number.isNaN(checkOut.getTime())) {
+    if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
       return res.status(400).json({
         success: false,
         message: 'Invalid check-in or check-out date format',
@@ -140,36 +140,56 @@ exports.addBooking = async (req, res, next) => {
       });
     }
 
-    // Calculate subTotal and apply a valid promotion, if supplied
-    const subTotal = Math.round(numOfNights * hotelPrice * 100) / 100;
-    const booking = new Booking({
+    // Calculate price and apply promotion code if provided
+    const subTotal = numOfNights * hotelPrice;
+    let promoCode;
+    let discount = 0;
+
+    if (req.body.promoCode) {
+      promoCode = req.body.promoCode.trim().toUpperCase();
+      const promotion = await Promotion.findOne({ code: promoCode });
+
+      if (!promotion || !promotion.isActive) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or inactive promotion code',
+        });
+      }
+
+      if (promotion.validUntil && promotion.validUntil <= new Date()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Promotion code has expired',
+        });
+      }
+
+      if (promotion.discountType === 'percentage') {
+        discount = (subTotal * promotion.discountValue) / 100;
+      } else {
+        discount = promotion.discountValue;
+      }
+
+      // Discount cannot exceed subTotal
+      if (discount > subTotal) {
+        discount = subTotal;
+      }
+      discount = Math.round(discount * 100) / 100;
+    }
+
+    const totalPrice = Math.round((subTotal - discount) * 100) / 100;
+
+    const booking = await Booking.create({
       checkInDate: checkIn,
       checkOutDate: checkOut,
       numOfNights,
       user: req.user.id,
       hotel: hotelId,
       subTotal,
-      discount: 0,
-      totalPrice: subTotal,
+      promoCode,
+      discount,
+      totalPrice,
       status: 'pending',
     });
-
-    if (req.body.promoCode !== undefined && req.body.promoCode !== null) {
-      if (typeof req.body.promoCode !== 'string' || !req.body.promoCode.trim()) {
-        return res.status(400).json({ success: false, message: 'Please provide a valid promoCode' });
-      }
-
-      const promoCode = req.body.promoCode.trim().toUpperCase();
-      const promotion = await Promotion.findOne({ code: promoCode });
-
-      try {
-        booking.applyPromotion(promotion);
-      } catch (promoErr) {
-        return res.status(400).json({ success: false, message: promoErr.message });
-      }
-    }
-
-    await booking.save();
 
     res.status(201).json({
       success: true,
@@ -240,7 +260,7 @@ exports.updateBooking = async (req, res, next) => {
     req.body.totalPrice = Math.round((subTotal - discount) * 100) / 100;
 
     booking = await Booking.findByIdAndUpdate(req.params.id, req.body, {
-      returnDocument: 'after',
+      new: true,
       runValidators: true,
     });
 
@@ -343,7 +363,7 @@ exports.payBooking = async (req, res, next) => {
     const user = await User.findByIdAndUpdate(
       booking.user,
       { $inc: { points: pointsEarned } },
-      { returnDocument: 'after' },
+      { new: true },
     );
 
     res.status(200).json({

@@ -1,33 +1,39 @@
 const Hotel = require('../models/Hotel');
+const Booking = require('../models/Booking');
 
 //@desc    Get all hotels
 //@route   GET /api/v1/hotels
 //@access  Public
 exports.getHotels = async (req, res, next) => {
   try {
-    // Copy req.query without options used for selecting, sorting and pagination
+    // Copy req.query
     const reqQuery = { ...req.query };
+
+    // Fields to exclude
     const removeFields = ['select', 'sort', 'page', 'limit'];
+
+    // Loop over removeFields and delete them from reqQuery
     removeFields.forEach((param) => delete reqQuery[param]);
 
-    // Allow the same comparison operators as the reference hospital catalog
+    // Create query string
     let queryStr = JSON.stringify(reqQuery);
-    queryStr = queryStr.replace(/"(gt|gte|lt|lte|in)":/g, (match, operator) => `"$${operator}":`);
-    const filter = JSON.parse(queryStr);
 
-    Object.values(filter).forEach((value) => {
-      if (value && typeof value === 'object' && typeof value.$in === 'string') {
-        value.$in = value.$in.split(',').map((item) => item.trim());
-      }
-    });
+    // Create operators ($gt, $gte, etc)
+    queryStr = queryStr.replace(
+      /\b(gt|gte|lt|lte|in)\b/g,
+      (match) => `$${match}`,
+    );
 
-    let query = Hotel.find(filter).populate('bookings');
+    // Finding resource
+    let query = Hotel.find(JSON.parse(queryStr)).populate('bookings');
 
+    // Select fields
     if (req.query.select) {
       const fields = req.query.select.split(',').join(' ');
       query = query.select(fields);
     }
 
+    // Sort
     if (req.query.sort) {
       const sortBy = req.query.sort.split(',').join(' ');
       query = query.sort(sortBy);
@@ -35,26 +41,24 @@ exports.getHotels = async (req, res, next) => {
       query = query.sort('-createdAt');
     }
 
-    const page = req.query.page === undefined ? 1 : Number(req.query.page);
-    const limit = req.query.limit === undefined ? 25 : Number(req.query.limit);
-
-    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1) {
-      return res.status(400).json({
-        success: false,
-        message: 'Page and limit must be positive integers',
-      });
-    }
-
+    // Pagination
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 25;
     const startIndex = (page - 1) * limit;
     const endIndex = page * limit;
-    const total = await Hotel.countDocuments(filter);
-    const hotels = await query.skip(startIndex).limit(limit);
+    const total = await Hotel.countDocuments();
 
+    query = query.skip(startIndex).limit(limit);
+
+    // Executing query
+    const hotels = await query;
+
+    // Pagination result
     const pagination = {};
     if (endIndex < total) {
       pagination.next = { page: page + 1, limit };
     }
-    if (startIndex > 0 && startIndex < total) {
+    if (startIndex > 0) {
       pagination.prev = { page: page - 1, limit };
     }
 
@@ -66,8 +70,7 @@ exports.getHotels = async (req, res, next) => {
     });
   } catch (err) {
     console.error(err);
-    const statusCode = err.name === 'CastError' ? 400 : 500;
-    res.status(statusCode).json({ success: false, message: 'Cannot find hotels' });
+    res.status(400).json({ success: false, message: 'Cannot find hotels' });
   }
 };
 
@@ -88,8 +91,7 @@ exports.getHotel = async (req, res, next) => {
     res.status(200).json({ success: true, data: hotel });
   } catch (err) {
     console.error(err);
-    const statusCode = err.name === 'CastError' ? 400 : 500;
-    res.status(statusCode).json({ success: false, message: 'Cannot find hotel' });
+    res.status(400).json({ success: false, message: 'Cannot find hotel' });
   }
 };
 
@@ -102,8 +104,7 @@ exports.createHotel = async (req, res, next) => {
     res.status(201).json({ success: true, data: hotel });
   } catch (err) {
     console.error(err);
-    const statusCode = err.name === 'ValidationError' || err.code === 11000 ? 400 : 500;
-    res.status(statusCode).json({ success: false, message: err.message || 'Cannot create hotel' });
+    res.status(400).json({ success: false, message: err.message });
   }
 };
 
@@ -113,7 +114,7 @@ exports.createHotel = async (req, res, next) => {
 exports.updateHotel = async (req, res, next) => {
   try {
     const hotel = await Hotel.findByIdAndUpdate(req.params.id, req.body, {
-      returnDocument: 'after',
+      new: true,
       runValidators: true,
     });
 
@@ -127,8 +128,7 @@ exports.updateHotel = async (req, res, next) => {
     res.status(200).json({ success: true, data: hotel });
   } catch (err) {
     console.error(err);
-    const statusCode = err.name === 'CastError' || err.name === 'ValidationError' || err.code === 11000 ? 400 : 500;
-    res.status(statusCode).json({ success: false, message: err.message || 'Cannot update hotel' });
+    res.status(400).json({ success: false, message: err.message });
   }
 };
 
@@ -146,12 +146,12 @@ exports.deleteHotel = async (req, res, next) => {
       });
     }
 
-    // Document deletion runs Hotel's existing hook that removes its bookings
-    await hotel.deleteOne();
+    await Booking.deleteMany({ hotel: req.params.id });
+    await Hotel.deleteOne({ _id: req.params.id });
+
     res.status(200).json({ success: true, data: {} });
   } catch (err) {
     console.error(err);
-    const statusCode = err.name === 'CastError' ? 400 : 500;
-    res.status(statusCode).json({ success: false, message: err.message || 'Cannot delete hotel' });
+    res.status(400).json({ success: false, message: 'Cannot delete hotel' });
   }
 };

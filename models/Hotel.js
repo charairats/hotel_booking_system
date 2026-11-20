@@ -49,16 +49,6 @@ const HotelSchema = new mongoose.Schema(
   },
 );
 
-// Cascade delete bookings when a hotel is deleted
-HotelSchema.pre(
-  'deleteOne',
-  { document: true, query: false },
-  async function () {
-    console.log(`Bookings being removed from hotel ${this._id}`);
-    await this.model('Booking').deleteMany({ hotel: this._id });
-  },
-);
-
 // Reverse populate with virtuals
 HotelSchema.virtual('bookings', {
   ref: 'Booking',
