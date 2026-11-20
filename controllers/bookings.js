@@ -132,11 +132,11 @@ exports.addBooking = async (req, res, next) => {
     const diffTime = checkOut.getTime() - checkIn.getTime();
     const numOfNights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    // Condition 2: Max 30 nights constraint
-    if (numOfNights > 30) {
+    // Condition 2: Max nights constraint from hotel model
+    if (numOfNights > hotel.maxNights) {
       return res.status(400).json({
         success: false,
-        message: `Cannot book more than 30 nights. Requested: ${numOfNights} nights`,
+        message: `Cannot book more than ${hotel.maxNights} nights. Requested: ${numOfNights} nights`,
       });
     }
 
@@ -240,15 +240,22 @@ exports.updateBooking = async (req, res, next) => {
     const diffTime = checkOut.getTime() - checkIn.getTime();
     const numOfNights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (numOfNights > 30) {
-      return res.status(400).json({
+    const hotel = await Hotel.findById(booking.hotel);
+    if (!hotel) {
+      return res.status(404).json({
         success: false,
-        message: `Cannot book more than 30 nights. Requested: ${numOfNights} nights`,
+        message: `No hotel with the id of ${booking.hotel}`,
       });
     }
 
-    const hotel = await Hotel.findById(booking.hotel);
-    const hotelPrice = hotel ? hotel.pricePerNight : 1000;
+    if (numOfNights > hotel.maxNights) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot book more than ${hotel.maxNights} nights. Requested: ${numOfNights} nights`,
+      });
+    }
+
+    const hotelPrice = hotel.pricePerNight;
 
     const subTotal = Math.round(numOfNights * hotelPrice * 100) / 100;
     const discount = Math.min(subTotal, booking.discount || 0);

@@ -38,6 +38,11 @@ const HotelSchema = new mongoose.Schema(
       required: [true, 'Please add price per night'],
       default: 1000,
     },
+    maxNights: {
+      type: Number,
+      default: 30,
+      min: [1, 'Max nights must be at least 1'],
+    },
     createdAt: {
       type: Date,
       default: Date.now,
