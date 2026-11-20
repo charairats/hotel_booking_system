@@ -187,10 +187,18 @@
               "pm.test('There are at least 20 hotels', function () {",
               "  pm.expect(response.data.length).to.be.at.least(20);",
               "});",
-              "pm.collectionVariables.set('hotelId', response.data[0]._id);",
-              "pm.collectionVariables.set('checkInDate', new Date(Date.now() + 40 * 86400000).toISOString());",
+              "const hotel = response.data.find(function (item) {",
+              "  return Number.isInteger(item.maxNights) && item.maxNights >= 3;",
+              "});",
+              "pm.test('A hotel allowing at least 3 nights is available', function () {",
+              "  pm.expect(hotel).to.exist;",
+              "});",
+              "pm.collectionVariables.set('hotelId', hotel._id);",
+              "pm.collectionVariables.set('hotelMaxNights', hotel.maxNights);",
+              "const checkInDate = new Date(Date.now() + 40 * 86400000);",
+              "pm.collectionVariables.set('checkInDate', checkInDate.toISOString());",
               "pm.collectionVariables.set('invalidCheckOutDate', new Date(Date.now() + 39 * 86400000).toISOString());",
-              "pm.collectionVariables.set('longCheckOutDate', new Date(Date.now() + 71 * 86400000).toISOString());",
+              "pm.collectionVariables.set('longCheckOutDate', new Date(checkInDate.getTime() + (hotel.maxNights + 1) * 86400000).toISOString());",
               "pm.collectionVariables.set('checkOutDate', new Date(Date.now() + 42 * 86400000).toISOString());",
               "pm.collectionVariables.set('updatedCheckInDate', new Date(Date.now() + 43 * 86400000).toISOString());",
               "pm.collectionVariables.set('updatedCheckOutDate', new Date(Date.now() + 46 * 86400000).toISOString());",
@@ -251,15 +259,16 @@
       }
     },
     {
-      "name": "4.2 Invalid Booking — More Than 30 Nights",
+      "name": "4.2 Invalid Booking — More Than Hotel Max Nights",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('More than 30 nights returns 400', function () {",
+              "pm.test('More than the hotel max nights returns 400', function () {",
               "  pm.response.to.have.status(400);",
+              "  pm.expect(pm.response.json().message).to.include('Cannot book more than ' + pm.collectionVariables.get('hotelMaxNights') + ' nights');",
               "});"
             ]
           }
